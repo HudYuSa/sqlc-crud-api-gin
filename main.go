@@ -22,6 +22,9 @@ var (
 
 	AuthController controllers.AuthController
 	AuthRoutes     routes.AuthRoutes
+
+	UserController controllers.UserController
+	UserRoutes     routes.UserRoutes
 )
 
 func init() {
@@ -40,7 +43,10 @@ func init() {
 	fmt.Println("PostgreSQL connected successfully...")
 
 	AuthController = controllers.NewAuthController(db)
-	AuthRoutes = routes.NewAuthRoutes(AuthController)
+	AuthRoutes = routes.NewAuthRoutes(AuthController, db)
+
+	UserController = controllers.NewUserController(db)
+	UserRoutes = routes.NewUserRoutes(UserController, db)
 
 	server = gin.Default()
 
