@@ -39,9 +39,7 @@ func init() {
 
 	fmt.Println("PostgreSQL connected successfully...")
 
-	ctx := gin.Context{}
-
-	AuthController = controllers.NewAuthController(db, &ctx)
+	AuthController = controllers.NewAuthController(db)
 	AuthRoutes = routes.NewAuthRoutes(AuthController)
 
 	server = gin.Default()
