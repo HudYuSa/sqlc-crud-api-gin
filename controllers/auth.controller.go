@@ -74,7 +74,6 @@ func (ac *authController) SignUpUser(ctx *gin.Context) {
 		Status: "success",
 		Data:   gin.H{"user": userResponse},
 	})
-
 }
 
 func (ac *authController) SignInUser(ctx *gin.Context) {
