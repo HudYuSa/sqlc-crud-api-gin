@@ -24,8 +24,7 @@ INSERT INTO
         ROLE,
         updated_at
     )
-VALUES ($1, $2, $3, $4, $5, $6, $7)
-RETURNING id, name, email, photo, verified, password, role, created_at, updated_at
+VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id, name, email, photo, verified, password, role, created_at, updated_at
 `
 
 type CreateUserParams struct {
@@ -75,11 +74,11 @@ func (q *Queries) DeleteUser(ctx context.Context, id uuid.UUID) error {
 
 const getUserByEmail = `-- name: GetUserByEmail :one
 
-SELECT id, name, email, photo, verified, password, role, created_at, updated_at FROM users WHERE id = $1 LIMIT 1
+SELECT id, name, email, photo, verified, password, role, created_at, updated_at FROM users WHERE email = $1 LIMIT 1
 `
 
-func (q *Queries) GetUserByEmail(ctx context.Context, id uuid.UUID) (User, error) {
-	row := q.queryRow(ctx, q.getUserByEmailStmt, getUserByEmail, id)
+func (q *Queries) GetUserByEmail(ctx context.Context, email string) (User, error) {
+	row := q.queryRow(ctx, q.getUserByEmailStmt, getUserByEmail, email)
 	var i User
 	err := row.Scan(
 		&i.ID,
@@ -171,8 +170,7 @@ set
     password = $6,
     role = $7,
     updated_at = $8
-WHERE id = $1
-RETURNING id, name, email, photo, verified, password, role, created_at, updated_at
+WHERE id = $1 RETURNING id, name, email, photo, verified, password, role, created_at, updated_at
 `
 
 type UpdateUserParams struct {

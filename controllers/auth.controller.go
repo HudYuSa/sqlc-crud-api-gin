@@ -1,10 +1,12 @@
 package controllers
 
 import (
+	"context"
 	"net/http"
 	"time"
 
 	db "github.com/HudYuSa/sqlc-crud-api-gin/db/sqlc"
+	"github.com/HudYuSa/sqlc-crud-api-gin/models"
 	"github.com/HudYuSa/sqlc-crud-api-gin/utils"
 	"github.com/gin-gonic/gin"
 )
@@ -14,15 +16,16 @@ type AuthController interface {
 }
 
 type authController struct {
-	db *db.Queries
+	db  *db.Queries
+	ctx context.Context
 }
 
-func NewAuthController(db *db.Queries) AuthController {
-	return &authController{db}
+func NewAuthController(db *db.Queries, ctx context.Context) AuthController {
+	return &authController{db, ctx}
 }
 
 func (ac *authController) SignUpUser(ctx *gin.Context) {
-	credentials := db.User{}
+	credentials := models.SignUpInput{}
 
 	if err := ctx.ShouldBindJSON(&credentials); err != nil {
 		ctx.JSON(http.StatusBadRequest, utils.WebResponse{
@@ -34,13 +37,21 @@ func (ac *authController) SignUpUser(ctx *gin.Context) {
 
 	hashedPassword := utils.HashPassword(credentials.Password)
 
+	var role string
+
+	if _, ok := ctx.GetQuery("admin"); ok {
+		role = "admin"
+	} else {
+		role = "user"
+	}
+
 	args := &db.CreateUserParams{
 		Name:      credentials.Name,
 		Email:     credentials.Email,
 		Password:  hashedPassword,
-		Photo:     "default.jpeg",
+		Photo:     credentials.Photo,
 		Verified:  true,
-		Role:      "user",
+		Role:      role,
 		UpdatedAt: time.Now(),
 	}
 
@@ -53,9 +64,11 @@ func (ac *authController) SignUpUser(ctx *gin.Context) {
 		return
 	}
 
+	userResponse := models.FilteredResponse(user)
+
 	ctx.JSON(http.StatusCreated, utils.WebResponse{
 		Status: "success",
-		Data:   gin.H{"user": user},
+		Data:   gin.H{"user": userResponse},
 	})
 
 }
