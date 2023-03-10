@@ -1,6 +1,7 @@
 package controllers
 
 import (
+	"fmt"
 	"net/http"
 	"time"
 
@@ -9,11 +10,14 @@ import (
 	"github.com/HudYuSa/sqlc-crud-api-gin/models"
 	"github.com/HudYuSa/sqlc-crud-api-gin/utils"
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 )
 
 type AuthController interface {
 	SignUpUser(ctx *gin.Context)
 	SignInUser(ctx *gin.Context)
+	RefreshAccessToken(ctx *gin.Context)
+	LogoutUser(ctx *gin.Context)
 }
 
 type authController struct {
@@ -104,7 +108,7 @@ func (ac *authController) SignInUser(ctx *gin.Context) {
 	config, _ := config.LoadConfig(".")
 
 	// Generate Tokens
-	access_token, err := utils.CreateToken(config.AccessTokenExpiresIn, user.ID, config.AccessTokenPrivateKey)
+	accessToken, err := utils.CreateToken(config.AccessTokenExpiresIn, user.ID, config.AccessTokenPrivateKey)
 	if err != nil {
 		ctx.JSON(http.StatusBadRequest, utils.WebResponse{
 			Status:  "fail",
@@ -124,10 +128,77 @@ func (ac *authController) SignInUser(ctx *gin.Context) {
 
 	// set the cookie
 
-	ctx.SetCookie("access_token", access_token, config.AccessTokenMaxAge, "/", "localhost", false, true)
+	ctx.SetCookie("access_token", accessToken, config.AccessTokenMaxAge, "/", "localhost", false, true)
 	ctx.SetCookie("refresh_token", refresh_token, config.RefreshTokenMaxAge, "/", "localhost", false, true)
 	ctx.SetCookie("logged_in", "true", config.AccessTokenMaxAge*60, "/", "localhost", false, false)
 
 	// sent access token as response
-	ctx.JSON(http.StatusOK, gin.H{"status": "success", "access_token": access_token})
+	ctx.JSON(http.StatusOK, utils.WebResponse{
+		Status: "success",
+		Data: gin.H{
+			"access_token": accessToken,
+		},
+	})
+}
+
+func (ac *authController) RefreshAccessToken(ctx *gin.Context) {
+
+	cookie, err := ctx.Cookie("refresh_token")
+	if err != nil {
+		ctx.AbortWithStatusJSON(http.StatusForbidden, utils.WebResponse{
+			Status:  "fail",
+			Message: err.Error(),
+		})
+		return
+	}
+
+	config, _ := config.LoadConfig(".")
+
+	sub, err := utils.ValidateToken(cookie, config.RefreshTokenPublicKey)
+	if err != nil {
+		ctx.AbortWithStatusJSON(http.StatusForbidden, utils.WebResponse{
+			Status:  "fail",
+			Message: err.Error(),
+		})
+		return
+	}
+
+	user, err := ac.db.GetUserById(ctx, uuid.MustParse(fmt.Sprint(sub)))
+	if err != nil {
+		ctx.AbortWithStatusJSON(http.StatusForbidden, utils.WebResponse{
+			Status:  "fail",
+			Message: "the user belonging to this token no longer exist",
+		})
+		return
+	}
+
+	// create new access token
+	accessToken, err := utils.CreateToken(time.Duration(config.AccessTokenExpiresIn), user.ID, config.AccessTokenPrivateKey)
+	if err != nil {
+		ctx.AbortWithStatusJSON(http.StatusForbidden, utils.WebResponse{
+			Status:  "fail",
+			Message: err.Error(),
+		})
+		return
+	}
+
+	ctx.SetCookie("access_token", accessToken, config.AccessTokenMaxAge, "/", "localhost", false, true)
+	ctx.SetCookie("logged_in", "true", config.AccessTokenMaxAge*60, "/", "localhost", false, false)
+
+	ctx.JSON(http.StatusOK, utils.WebResponse{
+		Status: "success",
+		Data: gin.H{
+			"access_token": accessToken,
+		},
+	})
+}
+
+func (ac *authController) LogoutUser(ctx *gin.Context) {
+	ctx.SetCookie("access_token", "", -1, "/", "localhost", false, true)
+	ctx.SetCookie("refresh_token", "", -1, "/", "localhost", false, true)
+	ctx.SetCookie("logged_in", "", -1, "/", "localhost", false, true)
+
+	ctx.JSON(http.StatusOK, utils.WebResponse{
+		Status: "success",
+	})
 }
