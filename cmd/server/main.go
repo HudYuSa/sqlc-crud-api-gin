@@ -1,6 +1,7 @@
-package main
+package server
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 	"log"
@@ -11,31 +12,33 @@ import (
 	dbConn "github.com/HudYuSa/sqlc-crud-api-gin/db/sqlc"
 	"github.com/HudYuSa/sqlc-crud-api-gin/routes"
 	"github.com/HudYuSa/sqlc-crud-api-gin/utils"
+	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
-
-	_ "github.com/lib/pq"
 )
 
 var (
 	server *gin.Engine
 	db     *dbConn.Queries
+	ctx    context.Context
 
 	AuthController controllers.AuthController
-	AuthRoutes     routes.AuthRoutes
-
 	UserController controllers.UserController
-	UserRoutes     routes.UserRoutes
+
+	AuthRoutes routes.AuthRoutes
+	UserRoutes routes.UserRoutes
 )
 
 func init() {
+	ctx = context.TODO()
 	config, err := config.LoadConfig(".")
+
 	if err != nil {
-		log.Fatalf("could not load config: %v", err)
+		log.Fatalf("couldn not load config: %v", err)
 	}
 
 	conn, err := sql.Open(config.PostgreDriver, config.PostgresSource)
 	if err != nil {
-		log.Fatalf("connection failed: %v", err)
+		log.Fatalf("could not connect to postgres database: %v", err)
 	}
 
 	db = dbConn.New(conn)
@@ -43,13 +46,12 @@ func init() {
 	fmt.Println("PostgreSQL connected successfully...")
 
 	AuthController = controllers.NewAuthController(db)
-	AuthRoutes = routes.NewAuthRoutes(AuthController, db)
-
 	UserController = controllers.NewUserController(db)
+
+	AuthRoutes = routes.NewAuthRoutes(AuthController, db)
 	UserRoutes = routes.NewUserRoutes(UserController, db)
 
 	server = gin.Default()
-
 }
 
 func main() {
@@ -58,14 +60,13 @@ func main() {
 		log.Fatalf("could not load config: %v", err)
 	}
 
-	router := server.Group("/api")
+	corsConfig := cors.DefaultConfig()
+	corsConfig.AllowOrigins = []string{config.Origin}
+	corsConfig.AllowCredentials = true
 
-	router.GET("/healthchecker", func(ctx *gin.Context) {
-		ctx.JSON(http.StatusOK, utils.WebResponse{
-			Status:  "success",
-			Message: "Welcome to Golang with PostgreSQL",
-		})
-	})
+	server.Use(cors.New(corsConfig))
+
+	router := server.Group("/api")
 
 	// setup the routes
 	AuthRoutes.SetupRoutes(router)
